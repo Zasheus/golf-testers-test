@@ -8,6 +8,7 @@ import {
 import type {HeaderQuery, CartApiQueryFragment} from 'storefrontapi.generated';
 import {useAside} from '~/components/Aside';
 import {User, Search, ShoppingCart} from 'lucide-react';
+import logo from '~/assets/logo.png';
 
 interface HeaderProps {
   header: HeaderQuery;
@@ -26,9 +27,10 @@ export function Header({
 }: HeaderProps) {
   const {shop, menu} = header;
   return (
-    <header className="flex items-center bg-[#0f2725] h-16 px-8 py-12 w-full z-1">
+    <header className="flex items-center bg-[#1d3637] h-16 px-32 py-12 w-full z-1">
       <NavLink prefetch="intent" to="/" style={activeLinkStyle} end>
-        <strong>{shop.name}</strong>
+        {/* <strong>{shop.name}</strong> */}
+        <img src={logo} className="h-12 w-auto" />
       </NavLink>
       <HeaderMenu
         menu={menu}
@@ -85,7 +87,7 @@ export function HeaderMenu({
             : item.url;
         return (
           <NavLink
-            className="cursor-pointer"
+            className="cursor-pointer font-medium"
             end
             key={item.id}
             onClick={close}

@@ -27,7 +27,7 @@ export function Footer({
     <Suspense>
       <Await resolve={footerPromise}>
         {(footer) => (
-          <footer className="bg-[#0f2725] text-gray-100">
+          <footer className="bg-[#1d3637] text-gray-100">
             <div className="max-w-7xl mx-auto px-4 py-12">
               {/* Main Footer Content */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">

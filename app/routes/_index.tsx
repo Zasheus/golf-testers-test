@@ -8,7 +8,11 @@ import type {
 } from 'storefrontapi.generated';
 import {ChevronDown} from 'lucide-react';
 import {motion} from 'motion/react';
-import titliest from '~/assets/titleist.png';
+import titliest from '~/assets/titleist.svg';
+import taylormade from '~/assets/taylormade.png';
+import callaway from '~/assets/callaway.png';
+import mizuno from '~/assets/mizuno.svg';
+import hero from '~/assets/hero.png';
 
 export const meta: MetaFunction = () => {
   return [{title: 'Hydrogen | Home'}];
@@ -57,11 +61,10 @@ export function Homepage() {
 
 const BrandBanner = () => {
   const brands = [
-    {id: 1, name: 'Adidas', src: titliest},
+    {id: 1, name: 'Mizuno', src: mizuno},
     {id: 2, name: 'Titleist', src: titliest},
-    {id: 3, name: 'Nike', src: titliest},
-    {id: 4, name: 'Under Armour', src: titliest},
-    {id: 5, name: 'Callaway', src: titliest},
+    {id: 3, name: 'TaylorMade', src: taylormade},
+    {id: 4, name: 'Callaway', src: callaway},
   ];
 
   const duplicatedBrands = [...brands, ...brands];
@@ -98,28 +101,34 @@ function FeaturedCollection({
   if (!collection) return null;
   const image = collection?.image;
   return (
-    <Link className="block relative" to={`/collections/${collection.handle}`}>
+    <>
       {image && (
-        <div className="relative h-screen w-full">
+        <div className="relative h-[70vh] w-full">
           <img
-            src={image.url}
+            src={hero}
             alt={image.altText || ''}
-            sizes="90vw"
             className="h-full w-full object-cover"
           />
 
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30">
-            <h2 className="text-6xl font-bold text-white mb-4">What's New</h2>
-            <h2 className="text-2xl text-white mb-4">Christmas Sale</h2>
+            <h2 className="text-6xl font-bold text-white mb-2">
+              Summer is here
+            </h2>
+            <h2 className="text-2xl font-light text-white">SS 2024</h2>
           </div>
 
-          <div className="absolute bottom-8 left-0 right-0 flex flex-col items-center text-white">
-            <span className="mb-2 font-medium">View More</span>
-            <ChevronDown className="animate-bounce" size={32} />
-          </div>
+          <Link
+            className="block relative"
+            to={`/collections/${collection.handle}`}
+          >
+            <div className="absolute bottom-8 left-0 right-0 flex flex-col items-center text-white">
+              <span className="mb-2 font-medium">View More</span>
+              <ChevronDown className="animate-bounce" size={32} />
+            </div>
+          </Link>
         </div>
       )}
-    </Link>
+    </>
   );
 }
 
@@ -129,7 +138,7 @@ function RecommendedProducts({
   products: Promise<RecommendedProductsQuery | null>;
 }) {
   return (
-    <div className="px-10 py-10">
+    <div className="px-32 py-20">
       <h2 className="text-lg text-gray-500 font-medium">Discover</h2>
       <h2 className="text-5xl font-bold">Products</h2>
       <Suspense fallback={<div>Loading...</div>}>
