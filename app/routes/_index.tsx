@@ -6,29 +6,24 @@ import type {
   FeaturedCollectionFragment,
   RecommendedProductsQuery,
 } from 'storefrontapi.generated';
+import {ChevronDown} from 'lucide-react';
+import {motion} from 'motion/react';
+import titliest from '~/assets/titleist.png';
 
 export const meta: MetaFunction = () => {
   return [{title: 'Hydrogen | Home'}];
 };
 
 export async function loader(args: LoaderFunctionArgs) {
-  // Start fetching non-critical data without blocking time to first byte
   const deferredData = loadDeferredData(args);
-
-  // Await the critical data required to render initial state of the page
   const criticalData = await loadCriticalData(args);
 
   return defer({...deferredData, ...criticalData});
 }
 
-/**
- * Load data necessary for rendering content above the fold. This is the critical data
- * needed to render the page. If it's unavailable, the whole page should 400 or 500 error.
- */
 async function loadCriticalData({context}: LoaderFunctionArgs) {
   const [{collections}] = await Promise.all([
     context.storefront.query(FEATURED_COLLECTION_QUERY),
-    // Add other queries here, so that they are loaded in parallel
   ]);
 
   return {
@@ -36,16 +31,10 @@ async function loadCriticalData({context}: LoaderFunctionArgs) {
   };
 }
 
-/**
- * Load data for rendering content below the fold. This data is deferred and will be
- * fetched after the initial page load. If it's unavailable, the page should still 200.
- * Make sure to not throw any errors here, as it will cause the page to 500.
- */
 function loadDeferredData({context}: LoaderFunctionArgs) {
   const recommendedProducts = context.storefront
     .query(RECOMMENDED_PRODUCTS_QUERY)
     .catch((error) => {
-      // Log query errors, but don't throw them so the page can still render
       console.error(error);
       return null;
     });
@@ -55,15 +44,51 @@ function loadDeferredData({context}: LoaderFunctionArgs) {
   };
 }
 
-export default function Homepage() {
+export function Homepage() {
   const data = useLoaderData<typeof loader>();
   return (
-    <div className="home">
+    <div>
       <FeaturedCollection collection={data.featuredCollection} />
+      <BrandBanner />
       <RecommendedProducts products={data.recommendedProducts} />
     </div>
   );
 }
+
+const BrandBanner = () => {
+  const brands = [
+    {id: 1, name: 'Adidas', src: titliest},
+    {id: 2, name: 'Titleist', src: titliest},
+    {id: 3, name: 'Nike', src: titliest},
+    {id: 4, name: 'Under Armour', src: titliest},
+    {id: 5, name: 'Callaway', src: titliest},
+  ];
+
+  const duplicatedBrands = [...brands, ...brands];
+
+  return (
+    <div className="w-full bg-gray-100 py-10 overflow-hidden">
+      <motion.div
+        className="flex items-center gap-x-32"
+        animate={{x: ['0%', '-50%']}}
+        transition={{
+          duration: 20,
+          ease: 'linear',
+          repeat: Infinity,
+        }}
+      >
+        {duplicatedBrands.map((brand) => (
+          <img
+            key={brand.id}
+            src={brand.src}
+            alt={`${brand.name} logo`}
+            className="h-20 w-auto flex-shrink-0 object-contain"
+          />
+        ))}
+      </motion.div>
+    </div>
+  );
+};
 
 function FeaturedCollection({
   collection,
@@ -73,16 +98,27 @@ function FeaturedCollection({
   if (!collection) return null;
   const image = collection?.image;
   return (
-    <Link
-      className="featured-collection"
-      to={`/collections/${collection.handle}`}
-    >
+    <Link className="block relative" to={`/collections/${collection.handle}`}>
       {image && (
-        <div className="featured-collection-image">
-          <Image data={image} sizes="100vw" />
+        <div className="relative h-screen w-full">
+          <img
+            src={image.url}
+            alt={image.altText || ''}
+            sizes="90vw"
+            className="h-full w-full object-cover"
+          />
+
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30">
+            <h2 className="text-6xl font-bold text-white mb-4">What's New</h2>
+            <h2 className="text-2xl text-white mb-4">Christmas Sale</h2>
+          </div>
+
+          <div className="absolute bottom-8 left-0 right-0 flex flex-col items-center text-white">
+            <span className="mb-2 font-medium">View More</span>
+            <ChevronDown className="animate-bounce" size={32} />
+          </div>
         </div>
       )}
-      <h1>{collection.title}</h1>
     </Link>
   );
 }
@@ -93,26 +129,29 @@ function RecommendedProducts({
   products: Promise<RecommendedProductsQuery | null>;
 }) {
   return (
-    <div className="recommended-products">
-      <h2>Recommended Products</h2>
+    <div className="px-10">
+      <h2 className="text-lg text-gray-500 font-medium">Discover</h2>
+      <h2 className="text-5xl font-bold">Products</h2>
       <Suspense fallback={<div>Loading...</div>}>
         <Await resolve={products}>
           {(response) => (
-            <div className="recommended-products-grid">
+            <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-6">
               {response
                 ? response.products.nodes.map((product) => (
                     <Link
                       key={product.id}
-                      className="recommended-product"
+                      className="group"
                       to={`/products/${product.handle}`}
                     >
-                      <Image
-                        data={product.images.nodes[0]}
-                        aspectRatio="1/1"
-                        sizes="(min-width: 45em) 20vw, 50vw"
-                      />
-                      <h4>{product.title}</h4>
-                      <small>
+                      <div className="aspect-square overflow-hidden">
+                        <img
+                          src={product.images.nodes[0].url}
+                          alt={product.images.nodes[0].altText || ''}
+                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        />
+                      </div>
+                      <h4 className="mt-2 font-medium">{product.title}</h4>
+                      <small className="text-gray-600">
                         <Money data={product.priceRange.minVariantPrice} />
                       </small>
                     </Link>
@@ -122,7 +161,7 @@ function RecommendedProducts({
           )}
         </Await>
       </Suspense>
-      <br />
+      <div className="mt-8" />
     </div>
   );
 }
@@ -180,3 +219,5 @@ const RECOMMENDED_PRODUCTS_QUERY = `#graphql
     }
   }
 ` as const;
+
+export default Homepage;
