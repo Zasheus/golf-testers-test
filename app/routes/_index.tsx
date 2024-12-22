@@ -82,7 +82,7 @@ const BrandBanner = () => {
             key={brand.id}
             src={brand.src}
             alt={`${brand.name} logo`}
-            className="h-20 w-auto flex-shrink-0 object-contain"
+            className="h-11 w-auto flex-shrink-0 object-contain"
           />
         ))}
       </motion.div>
@@ -129,7 +129,7 @@ function RecommendedProducts({
   products: Promise<RecommendedProductsQuery | null>;
 }) {
   return (
-    <div className="px-10">
+    <div className="px-10 py-10">
       <h2 className="text-lg text-gray-500 font-medium">Discover</h2>
       <h2 className="text-5xl font-bold">Products</h2>
       <Suspense fallback={<div>Loading...</div>}>
