@@ -1,7 +1,7 @@
 import {defer, redirect, type LoaderFunctionArgs} from '@netlify/remix-runtime';
 import {useLoaderData, Link, type MetaFunction} from '@remix-run/react';
 import {getPaginationVariables, Image, Money} from '@shopify/hydrogen';
-import {useState} from 'react';
+import {useState, useMemo} from 'react';
 import type {ProductItemFragment} from 'storefrontapi.generated';
 import {useVariantUrl} from '~/lib/variants';
 import {PaginatedResourceSection} from '~/components/PaginatedResourceSection';
@@ -113,6 +113,58 @@ export default function Collection() {
     {value: 'cobra', label: 'Cobra'},
   ];
 
+  // Filter products based on selected categories and other filters
+  const filteredProducts = useMemo(() => {
+    let filtered = collection.products.nodes;
+
+    // Filter by category
+    if (filters.category.length > 0) {
+      filtered = filtered.filter((product) => {
+        const productTags = product.tags || [];
+        const productTitle = product.title.toLowerCase();
+
+        return filters.category.some((category) => {
+          const categoryName = category.toLowerCase();
+          return (
+            productTags.includes(categoryName) ||
+            productTitle.includes(categoryName)
+          );
+        });
+      });
+    }
+
+    // Filter by brand
+    if (filters.brand.length > 0) {
+      filtered = filtered.filter((product) => {
+        const productTitle = product.title.toLowerCase();
+        return filters.brand.some((brand) =>
+          productTitle.includes(brand.toLowerCase()),
+        );
+      });
+    }
+
+    // Filter by price range
+    filtered = filtered.filter((product) => {
+      const price = parseFloat(product.priceRange.minVariantPrice.amount);
+      return price >= priceRange[0] && price <= priceRange[1];
+    });
+
+    // Filter by hand preference if specified
+    if (filters.hand.length > 0) {
+      filtered = filtered.filter((product) => {
+        const productTitle = product.title.toLowerCase();
+        return filters.hand.some((hand) =>
+          productTitle.includes(hand.toLowerCase()),
+        );
+      });
+    }
+
+    return {
+      ...collection.products,
+      nodes: filtered,
+    };
+  }, [collection.products, filters, priceRange]);
+
   return (
     <div className="min-h-screen bg-white">
       <div className="mx-auto max-w-[1800px] px-4 md:px-8 py-6">
@@ -153,24 +205,30 @@ export default function Collection() {
 
           {/* Product Grid */}
           <main className="flex-1 p-3 lg:p-6">
-            <PaginatedResourceSection
-              connection={collection.products}
-              resourcesClassName="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3"
-            >
-              {({
-                node: product,
-                index,
-              }: {
-                node: ProductItemFragment;
-                index: number;
-              }) => (
-                <ProductItem
-                  key={product.id}
-                  product={product}
-                  loading={index < 12 ? 'eager' : undefined}
-                />
-              )}
-            </PaginatedResourceSection>
+            {filteredProducts.nodes.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                No products match the selected filters
+              </div>
+            ) : (
+              <PaginatedResourceSection
+                connection={filteredProducts}
+                resourcesClassName="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3"
+              >
+                {({
+                  node: product,
+                  index,
+                }: {
+                  node: ProductItemFragment;
+                  index: number;
+                }) => (
+                  <ProductItem
+                    key={product.id}
+                    product={product}
+                    loading={index < 12 ? 'eager' : undefined}
+                  />
+                )}
+              </PaginatedResourceSection>
+            )}
           </main>
         </div>
       </div>
@@ -411,6 +469,7 @@ const PRODUCT_ITEM_FRAGMENT = `#graphql
     id
     handle
     title
+    tags
     featuredImage {
       id
       altText

@@ -12,25 +12,35 @@ import {getVariantUrl} from '~/lib/variants';
 import {ProductPrice} from '~/components/ProductPrice';
 import {ProductImage} from '~/components/ProductImage';
 import {ProductForm} from '~/components/ProductForm';
+import {motion} from 'framer-motion';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '~/components/ui/card';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '~/components/ui/accordion';
+import {Separator} from '~/components/ui/separator';
+import {Badge} from '~/components/ui/badge';
+import {ScrollArea} from '~/components/ui/scroll-area';
+import {ChevronRight, Package, Truck, Star} from 'lucide-react';
 
 export const meta: MetaFunction<typeof loader> = ({data}) => {
-  return [{title: `Hydrogen | ${data?.product.title ?? ''}`}];
+  return [{title: `${data?.product.title ?? ''} | Golf Store`}];
 };
 
 export async function loader(args: LoaderFunctionArgs) {
-  // Start fetching non-critical data without blocking time to first byte
   const deferredData = loadDeferredData(args);
-
-  // Await the critical data required to render initial state of the page
   const criticalData = await loadCriticalData(args);
-
   return defer({...deferredData, ...criticalData});
 }
 
-/**
- * Load data necessary for rendering content above the fold. This is the critical data
- * needed to render the page. If it's unavailable, the whole page should 400 or 500 error.
- */
 async function loadCriticalData({
   context,
   params,
@@ -47,7 +57,6 @@ async function loadCriticalData({
     storefront.query(PRODUCT_QUERY, {
       variables: {handle, selectedOptions: getSelectedProductOptions(request)},
     }),
-    // Add other queries here, so that they are loaded in parallel
   ]);
 
   if (!product?.id) {
@@ -65,8 +74,6 @@ async function loadCriticalData({
   if (firstVariantIsDefault) {
     product.selectedVariant = firstVariant;
   } else {
-    // if no selected variant was returned from the selected options,
-    // we redirect to the first variant's url with it's selected options applied
     if (!product.selectedVariant) {
       throw redirectToFirstVariant({product, request});
     }
@@ -77,23 +84,12 @@ async function loadCriticalData({
   };
 }
 
-/**
- * Load data for rendering content below the fold. This data is deferred and will be
- * fetched after the initial page load. If it's unavailable, the page should still 200.
- * Make sure to not throw any errors here, as it will cause the page to 500.
- */
 function loadDeferredData({context, params}: LoaderFunctionArgs) {
-  // In order to show which variants are available in the UI, we need to query
-  // all of them. But there might be a *lot*, so instead separate the variants
-  // into it's own separate query that is deferred. So there's a brief moment
-  // where variant options might show as available when they're not, but after
-  // this deffered query resolves, the UI will update.
   const variants = context.storefront
     .query(VARIANTS_QUERY, {
       variables: {handle: params.handle!},
     })
     .catch((error) => {
-      // Log query errors, but don't throw them so the page can still render
       console.error(error);
       return null;
     });
@@ -133,49 +129,205 @@ export default function Product() {
     variants,
   );
 
-  const {title, descriptionHtml} = product;
+  const {title, descriptionHtml, vendor} = product;
+  const isAvailable = selectedVariant?.availableForSale;
 
   return (
-    <div className="product">
-      <ProductImage image={selectedVariant?.image} />
-      <div className="product-main">
-        <h1>{title}</h1>
-        <ProductPrice
-          price={selectedVariant?.price}
-          compareAtPrice={selectedVariant?.compareAtPrice}
-        />
-        <br />
-        <Suspense
-          fallback={
-            <ProductForm
-              product={product}
-              selectedVariant={selectedVariant}
-              variants={[]}
-            />
-          }
+    <div className="min-h-screen bg-neutral-50">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <motion.div
+          initial={{opacity: 0, y: 20}}
+          animate={{opacity: 1, y: 0}}
+          transition={{duration: 0.5}}
+          className="grid grid-cols-1 gap-8 lg:grid-cols-2"
         >
-          <Await
-            errorElement="There was a problem loading product variants"
-            resolve={variants}
+          {/* Product Image Section */}
+          <motion.div
+            initial={{opacity: 0, x: -20}}
+            animate={{opacity: 1, x: 0}}
+            transition={{duration: 0.5, delay: 0.2}}
+            className="lg:sticky lg:top-4 lg:h-fit"
           >
-            {(data) => (
-              <ProductForm
-                product={product}
-                selectedVariant={selectedVariant}
-                variants={data?.product?.variants.nodes || []}
+            <Card className="overflow-hidden border-none shadow-xl">
+              <ProductImage
+                image={selectedVariant?.image}
+                className="aspect-square w-full object-cover transition-all duration-300 hover:scale-105"
               />
-            )}
-          </Await>
-        </Suspense>
-        <br />
-        <br />
-        <p>
-          <strong>Description</strong>
-        </p>
-        <br />
-        <div dangerouslySetInnerHTML={{__html: descriptionHtml}} />
-        <br />
+            </Card>
+
+            {/* Quick Product Features */}
+            <motion.div
+              initial={{opacity: 0, y: 20}}
+              animate={{opacity: 1, y: 0}}
+              transition={{duration: 0.5, delay: 0.4}}
+              className="mt-4 grid grid-cols-2 gap-4"
+            >
+              <Card className="bg-white/50 backdrop-blur">
+                <CardContent className="flex items-center space-x-3 p-4">
+                  <Star className="h-5 w-5 text-yellow-500" />
+                  <div>
+                    <p className="font-medium">Club Rating</p>
+                    <p className="text-sm text-neutral-500">
+                      4.8/5 (120 reviews)
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+              {selectedVariant?.sku && (
+                <Card className="bg-white/50 backdrop-blur">
+                  <CardContent className="p-4">
+                    <p className="font-medium">SKU</p>
+                    <p className="text-sm text-neutral-500">
+                      {selectedVariant.sku}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </motion.div>
+          </motion.div>
+
+          {/* Product Details Section */}
+          <motion.div
+            initial={{opacity: 0, x: 20}}
+            animate={{opacity: 1, x: 0}}
+            transition={{duration: 0.5, delay: 0.2}}
+            className="flex flex-col space-y-6"
+          >
+            {/* Breadcrumb */}
+            <nav className="flex items-center space-x-1 text-sm text-neutral-500">
+              <span>Golf Store</span>
+              <ChevronRight className="h-4 w-4" />
+              <span>Products</span>
+              <ChevronRight className="h-4 w-4" />
+              <span className="text-neutral-900">{title}</span>
+            </nav>
+
+            {/* Title and Vendor */}
+            <div>
+              <h1 className="text-4xl font-bold tracking-tight text-neutral-900">
+                {title}
+              </h1>
+              {vendor && (
+                <p className="mt-2 text-lg text-neutral-600">by {vendor}</p>
+              )}
+            </div>
+
+            {/* Price and Stock Status */}
+            <div className="flex items-center space-x-4">
+              <ProductPrice
+                price={selectedVariant?.price}
+                compareAtPrice={selectedVariant?.compareAtPrice}
+                className="text-3xl font-bold text-neutral-900"
+              />
+              {isAvailable ? (
+                <Badge variant="default" className="bg-green-500">
+                  In Stock
+                </Badge>
+              ) : (
+                <Badge variant="destructive">Out of Stock</Badge>
+              )}
+            </div>
+
+            {/* Product Form */}
+            <Card className="border-neutral-200 bg-white">
+              <CardContent className="p-6">
+                <Suspense
+                  fallback={
+                    <ProductForm
+                      product={product}
+                      selectedVariant={selectedVariant}
+                      variants={[]}
+                    />
+                  }
+                >
+                  <Await
+                    errorElement="There was a problem loading product variants"
+                    resolve={variants}
+                  >
+                    {(data) => (
+                      <ProductForm
+                        product={product}
+                        selectedVariant={selectedVariant}
+                        variants={data?.product?.variants.nodes || []}
+                      />
+                    )}
+                  </Await>
+                </Suspense>
+              </CardContent>
+            </Card>
+
+            {/* Shipping Info */}
+            <Card className="border-neutral-200 bg-white/50 backdrop-blur">
+              <CardContent className="grid grid-cols-1 gap-4 p-6 sm:grid-cols-2">
+                <div className="flex items-center space-x-3">
+                  <div className="rounded-full bg-green-100 p-2">
+                    <Truck className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium">Free Shipping</p>
+                    <p className="text-sm text-neutral-500">
+                      On orders over $99
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <div className="rounded-full bg-blue-100 p-2">
+                    <Package className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium">Easy Returns</p>
+                    <p className="text-sm text-neutral-500">30-day returns</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Product Description */}
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem
+                value="description"
+                className="border-neutral-200 bg-white"
+              >
+                <AccordionTrigger className="px-6 text-lg font-semibold hover:no-underline">
+                  Product Description
+                </AccordionTrigger>
+                <AccordionContent>
+                  <ScrollArea className="h-[300px] w-full rounded-md">
+                    <div
+                      className="prose prose-neutral max-w-none px-6 pb-6"
+                      dangerouslySetInnerHTML={{__html: descriptionHtml}}
+                    />
+                  </ScrollArea>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem
+                value="specifications"
+                className="border-neutral-200 bg-white"
+              >
+                <AccordionTrigger className="px-6 text-lg font-semibold hover:no-underline">
+                  Specifications
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="px-6 pb-6">
+                    <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      {selectedVariant?.selectedOptions.map((option) => (
+                        <div key={option.name}>
+                          <dt className="font-medium text-neutral-900">
+                            {option.name}
+                          </dt>
+                          <dd className="text-neutral-500">{option.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </motion.div>
+        </motion.div>
       </div>
+
       <Analytics.ProductView
         data={{
           products: [

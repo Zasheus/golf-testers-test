@@ -283,7 +283,7 @@ const CATEGORIES_QUERY = `#graphql
   }
   query StoreCollections($country: CountryCode, $language: LanguageCode)
     @inContext(country: $country, language: $language) {
-    collections(first: 4, sortKey: UPDATED_AT, reverse: true) {
+    collections(first: 6, sortKey: UPDATED_AT, reverse: false) {
       nodes {
         ...Collection
       }
