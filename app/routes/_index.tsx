@@ -26,12 +26,14 @@ export async function loader(args: LoaderFunctionArgs) {
 }
 
 async function loadCriticalData({context}: LoaderFunctionArgs) {
-  const [{collections}] = await Promise.all([
+  const [{collections}, {collections: categories}] = await Promise.all([
     context.storefront.query(FEATURED_COLLECTION_QUERY),
+    context.storefront.query(CATEGORIES_QUERY),
   ]);
 
   return {
     featuredCollection: collections.nodes[0],
+    categories: categories.nodes,
   };
 }
 
@@ -54,7 +56,35 @@ export function Homepage() {
     <div>
       <FeaturedCollection collection={data.featuredCollection} />
       <BrandBanner />
+      <Categories categories={data.categories} />
       <RecommendedProducts products={data.recommendedProducts} />
+    </div>
+  );
+}
+
+function Categories({categories}: {categories: any[]}) {
+  return (
+    <div className="px-32 py-20">
+      <h2 className="text-lg text-gray-500 font-medium">Browse</h2>
+      <h2 className="text-5xl font-bold">Categories</h2>
+      <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-6">
+        {categories.map((category) => (
+          <Link
+            key={category.id}
+            className="group"
+            to={`/collections/${category.handle}`}
+          >
+            <div className="aspect-square overflow-hidden">
+              <img
+                src={category.image?.url}
+                alt={category.image?.altText || category.title}
+                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+              />
+            </div>
+            <h4 className="mt-2 font-medium">{category.title}</h4>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }
@@ -67,28 +97,37 @@ const BrandBanner = () => {
     {id: 4, name: 'Callaway', src: callaway},
   ];
 
-  const duplicatedBrands = [...brands, ...brands];
+  // Quadruple the brands to ensure smooth infinite loop
+  const duplicatedBrands = [...brands, ...brands, ...brands, ...brands];
 
   return (
     <div className="w-full bg-gray-100 py-10 overflow-hidden">
-      <motion.div
-        className="flex items-center gap-x-32"
-        animate={{x: ['0%', '-50%']}}
-        transition={{
-          duration: 20,
-          ease: 'linear',
-          repeat: Infinity,
-        }}
-      >
-        {duplicatedBrands.map((brand) => (
-          <img
-            key={brand.id}
-            src={brand.src}
-            alt={`${brand.name} logo`}
-            className="h-11 w-auto flex-shrink-0 object-contain"
-          />
-        ))}
-      </motion.div>
+      <div className="relative">
+        <motion.div
+          className="flex items-center gap-x-32"
+          animate={{
+            x: [0, -50 * brands.length * 2], // Move twice the original distance
+          }}
+          transition={{
+            duration: 40,
+            repeat: Infinity,
+            ease: 'linear',
+            repeatType: 'loop',
+          }}
+          style={{
+            width: 'fit-content', // Allow container to be as wide as needed
+          }}
+        >
+          {duplicatedBrands.map((brand, index) => (
+            <img
+              key={`${brand.id}-${index}`}
+              src={brand.src}
+              alt={`${brand.name} logo`}
+              className="h-11 w-auto flex-shrink-0 object-contain"
+            />
+          ))}
+        </motion.div>
+      </div>
     </div>
   );
 };
@@ -224,6 +263,29 @@ const RECOMMENDED_PRODUCTS_QUERY = `#graphql
     products(first: 4, sortKey: UPDATED_AT, reverse: true) {
       nodes {
         ...RecommendedProduct
+      }
+    }
+  }
+` as const;
+
+const CATEGORIES_QUERY = `#graphql
+  fragment Collection on Collection {
+    id
+    title
+    image {
+      id
+      url
+      altText
+      width
+      height
+    }
+    handle
+  }
+  query StoreCollections($country: CountryCode, $language: LanguageCode)
+    @inContext(country: $country, language: $language) {
+    collections(first: 4, sortKey: UPDATED_AT, reverse: true) {
+      nodes {
+        ...Collection
       }
     }
   }
