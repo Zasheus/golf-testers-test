@@ -1,7 +1,6 @@
 import {defer, type LoaderFunctionArgs} from '@netlify/remix-runtime';
 import {Await, useLoaderData, Link, type MetaFunction} from '@remix-run/react';
 import {Suspense} from 'react';
-import {Image, Money} from '@shopify/hydrogen';
 import type {
   FeaturedCollectionFragment,
   RecommendedProductsQuery,
@@ -13,6 +12,7 @@ import taylormade from '~/assets/taylormade.png';
 import callaway from '~/assets/callaway.png';
 import mizuno from '~/assets/mizuno.svg';
 import hero from '~/assets/hero.png';
+import ProductCard from '~/components/ProductCard';
 
 export const meta: MetaFunction = () => {
   return [{title: 'Hydrogen | Home'}];
@@ -50,7 +50,7 @@ function loadDeferredData({context}: LoaderFunctionArgs) {
   };
 }
 
-export function Homepage() {
+function Homepage() {
   const data = useLoaderData<typeof loader>();
   return (
     <div>
@@ -171,38 +171,24 @@ function FeaturedCollection({
   );
 }
 
+// RecommendedProducts Component
 function RecommendedProducts({
   products,
 }: {
   products: Promise<RecommendedProductsQuery | null>;
 }) {
   return (
-    <div className="px-32 py-20">
+    <div className="px-4 md:px-8 lg:px-32 py-12 md:py-20">
       <h2 className="text-lg text-gray-500 font-medium">Discover</h2>
-      <h2 className="text-5xl font-bold">Products</h2>
+      <h2 className="text-3xl md:text-5xl font-bold">Products</h2>
+
       <Suspense fallback={<div>Loading...</div>}>
         <Await resolve={products}>
           {(response) => (
-            <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2 md:gap-4">
               {response
                 ? response.products.nodes.map((product) => (
-                    <Link
-                      key={product.id}
-                      className="group"
-                      to={`/products/${product.handle}`}
-                    >
-                      <div className="aspect-square overflow-hidden">
-                        <img
-                          src={product.images.nodes[0].url}
-                          alt={product.images.nodes[0].altText || ''}
-                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                        />
-                      </div>
-                      <h4 className="mt-2 font-medium">{product.title}</h4>
-                      <small className="text-gray-600">
-                        <Money data={product.priceRange.minVariantPrice} />
-                      </small>
-                    </Link>
+                    <ProductCard key={product.id} product={product} />
                   ))
                 : null}
             </div>

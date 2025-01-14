@@ -27,10 +27,10 @@ export function Header({
 }: HeaderProps) {
   const {shop, menu} = header;
   return (
-    <header className="flex items-center bg-[#1d3637] h-16 px-32 py-12 w-full z-1">
+    <header className="flex items-center bg-[#1d3637] h-16 px-32 py-11 w-full z-1">
       <NavLink prefetch="intent" to="/" style={activeLinkStyle} end>
         {/* <strong>{shop.name}</strong> */}
-        <img src={logo} className="h-12 w-auto" />
+        <img src={logo} className="h-11 w-auto" />
       </NavLink>
       <HeaderMenu
         menu={menu}
