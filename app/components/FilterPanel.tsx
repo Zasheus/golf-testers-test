@@ -5,7 +5,9 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '~/components/ui/collapsible';
-import {Slider} from '~/components/ui/slider';
+import {Input} from '~/components/ui/input';
+import {Label} from '~/components/ui/label';
+import * as Slider from '@radix-ui/react-slider';
 
 export interface FilterState {
   hand: string[];
@@ -47,8 +49,25 @@ function FilterPanel({
     });
   };
 
+  const handlePriceInputChange = (index: number, value: string) => {
+    const newValue = Number(value);
+    if (isNaN(newValue)) return;
+
+    const newRange = [...priceRange] as [number, number];
+    newRange[index] = Math.min(Math.max(newValue, 0), 2000);
+
+    // Ensure min doesn't exceed max and vice versa
+    if (index === 0 && newRange[0] > newRange[1]) {
+      newRange[0] = newRange[1];
+    } else if (index === 1 && newRange[1] < newRange[0]) {
+      newRange[1] = newRange[0];
+    }
+
+    setPriceRange(newRange);
+  };
+
   return (
-    <div className="space-y-1 text-sm">
+    <div className="space-y-1 text-sm pb-8">
       <div>
         <div className="space-y-3">
           <Collapsible defaultOpen>
@@ -102,6 +121,101 @@ function FilterPanel({
 
           <Collapsible defaultOpen>
             <CollapsibleTrigger className="flex w-full items-center justify-between py-2 font-medium">
+              Price Range
+              <ChevronDown className="h-4 w-4" />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-2">
+              <div className="px-2 space-y-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="grid gap-2 flex-1">
+                    <Label htmlFor="minPrice">Min ($)</Label>
+                    <Input
+                      id="minPrice"
+                      type="number"
+                      min={0}
+                      max={priceRange[1]}
+                      value={priceRange[0]}
+                      onChange={(e) =>
+                        handlePriceInputChange(0, e.target.value)
+                      }
+                      className="h-8"
+                    />
+                  </div>
+                  <div className="grid gap-2 flex-1">
+                    <Label htmlFor="maxPrice">Max ($)</Label>
+                    <Input
+                      id="maxPrice"
+                      type="number"
+                      min={priceRange[0]}
+                      max={2000}
+                      value={priceRange[1]}
+                      onChange={(e) =>
+                        handlePriceInputChange(1, e.target.value)
+                      }
+                      className="h-8"
+                    />
+                  </div>
+                </div>
+
+                {/* Slider wrapper with enhanced scroll prevention */}
+                <div className="py-4">
+                  <div
+                    className="touch-none select-none"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onTouchStart={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onTouchMove={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                  >
+                    <Slider.Root
+                      className="relative flex items-center select-none touch-none w-full h-5"
+                      value={priceRange}
+                      min={0}
+                      max={2000}
+                      step={50}
+                      onValueChange={(value) => {
+                        setPriceRange(value as [number, number]);
+                      }}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                      onTouchStart={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                    >
+                      <Slider.Track className="bg-neutral-200 relative grow rounded-full h-2">
+                        <Slider.Range className="absolute bg-neutral-900 rounded-full h-full" />
+                      </Slider.Track>
+                      <Slider.Thumb
+                        className="block w-4 h-4 bg-white border-2 border-neutral-900 rounded-full hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-400 transition-colors cursor-grab active:cursor-grabbing"
+                        aria-label="Min price"
+                      />
+                      <Slider.Thumb
+                        className="block w-4 h-4 bg-white border-2 border-neutral-900 rounded-full hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-400 transition-colors cursor-grab active:cursor-grabbing"
+                        aria-label="Max price"
+                      />
+                    </Slider.Root>
+                  </div>
+                </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          <Collapsible defaultOpen>
+            <CollapsibleTrigger className="flex w-full items-center justify-between py-2 font-medium">
               Brand
               <ChevronDown className="h-4 w-4" />
             </CollapsibleTrigger>
@@ -121,32 +235,7 @@ function FilterPanel({
             </CollapsibleContent>
           </Collapsible>
 
-          <Collapsible>
-            <CollapsibleTrigger className="flex w-full items-center justify-between py-2 font-medium">
-              Price Range
-              <ChevronDown className="h-4 w-4" />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-2">
-              <div className="px-2">
-                <Slider
-                  defaultValue={[0, 2000]}
-                  max={2000}
-                  step={50}
-                  value={priceRange}
-                  onValueChange={(value) =>
-                    setPriceRange(value as [number, number])
-                  }
-                  className="mt-2"
-                />
-                <div className="flex justify-between mt-2 text-sm text-gray-600">
-                  <span>${priceRange[0]}</span>
-                  <span>${priceRange[1]}</span>
-                </div>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-
-          <Collapsible>
+          <Collapsible defaultOpen>
             <CollapsibleTrigger className="flex w-full items-center justify-between py-2 font-medium">
               Condition
               <ChevronDown className="h-4 w-4" />
@@ -175,7 +264,7 @@ function FilterPanel({
             </CollapsibleContent>
           </Collapsible>
 
-          <Collapsible>
+          <Collapsible defaultOpen>
             <CollapsibleTrigger className="flex w-full items-center justify-between py-2 font-medium">
               Player Level
               <ChevronDown className="h-4 w-4" />

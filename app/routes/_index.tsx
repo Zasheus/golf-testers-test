@@ -156,10 +156,7 @@ function FeaturedCollection({
             <h2 className="text-2xl font-light text-white">SS 2024</h2>
           </div>
 
-          <Link
-            className="block relative"
-            to={`/collections/${collection.handle}`}
-          >
+          <Link className="block relative" to={`/collections/all`}>
             <div className="absolute bottom-8 left-0 right-0 flex flex-col items-center text-white">
               <span className="mb-2 font-medium">View More</span>
               <ChevronDown className="animate-bounce" size={32} />

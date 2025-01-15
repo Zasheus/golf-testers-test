@@ -1,5 +1,6 @@
 import {defer, type LoaderFunctionArgs} from '@netlify/remix-runtime';
 import {
+  Link,
   type MetaFunction,
   useLoaderData,
   useSearchParams,
@@ -9,6 +10,7 @@ import {AnimatePresence, motion} from 'framer-motion';
 import {Filter, X} from 'lucide-react';
 import {useEffect, useMemo, useState} from 'react';
 import type {ProductItemFragment} from 'storefrontapi.generated';
+import CollectionNav from '~/components/CollectionNav';
 import FilterPanel, {
   CategoryOption,
   FilterState,
@@ -27,30 +29,38 @@ import {
 type SortOption = 'bestMatch' | 'priceLowToHigh' | 'priceHighToLow';
 
 export const meta: MetaFunction = () => {
-  return [{title: 'All Products | Golf Store'}];
+  return [{title: 'Golf Clubs'}];
 };
 
 export async function loader({context, request}: LoaderFunctionArgs) {
   const {storefront} = context;
   const paginationVariables = getPaginationVariables(request, {pageBy: 12});
 
-  const [{products}] = await Promise.all([
+  const [{products}, {collections}] = await Promise.all([
     storefront.query(CATALOG_QUERY, {
       variables: {...paginationVariables},
     }),
+    storefront.query(CATEGORIES_QUERY),
   ]);
 
-  return defer({products});
+  return defer({
+    products,
+    collections: collections.nodes,
+  });
 }
 
 export default function AllProducts() {
-  const {products} = useLoaderData<typeof loader>();
+  const {products, collections} = useLoaderData<typeof loader>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [showMobileFilters, setShowMobileFilters] = useState(false);
-  const [showDesktopFilters, setShowDesktopFilters] = useState(false);
+  const [showDesktopFilters, setShowDesktopFilters] = useState(true);
   const [sortBy, setSortBy] = useState<SortOption>('bestMatch');
 
-  // Initialize filters from URL parameters if they exist
+  // Get current collection handle from URL
+  const currentPath = window.location.pathname;
+  const currentHandle = currentPath.split('/').pop();
+
+  // Initialize filters from URL parameters
   const [filters, setFilters] = useState<FilterState>({
     hand: searchParams.getAll('hand'),
     category: searchParams.getAll('category'),
@@ -59,7 +69,6 @@ export default function AllProducts() {
     level: searchParams.getAll('level'),
   });
 
-  // Initialize price range from URL parameters if they exist
   const [priceRange, setPriceRange] = useState<[number, number]>(() => {
     const minPrice = searchParams.has('minPrice')
       ? Number(searchParams.get('minPrice'))
@@ -88,7 +97,6 @@ export default function AllProducts() {
     {value: 'cobra', label: 'Cobra'},
   ];
 
-  // Update URL when filters change
   useEffect(() => {
     const newSearchParams = new URLSearchParams();
     let hasActiveFilters = false;
@@ -115,7 +123,6 @@ export default function AllProducts() {
     }
   }, [filters, priceRange, setSearchParams]);
 
-  // Filter products based on selected categories and other filters
   const filteredProducts = useMemo(() => {
     let filtered = products.nodes;
 
@@ -180,7 +187,6 @@ export default function AllProducts() {
     };
   }, [products, filters, priceRange]);
 
-  // Sort products based on selected option
   const sortedAndFilteredProducts = useMemo(() => {
     let sorted = [...filteredProducts.nodes];
 
@@ -200,7 +206,6 @@ export default function AllProducts() {
         );
         break;
       default:
-        // Best match - keep original order
         break;
     }
 
@@ -212,52 +217,91 @@ export default function AllProducts() {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="mx-auto max-w-[1800px] px-4 md:px-8 py-6">
-        {/* Top Controls for Mobile */}
-        <div className="lg:hidden flex items-center justify-between mb-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowMobileFilters(!showMobileFilters)}
-            className="flex items-center gap-2"
-          >
-            {showMobileFilters ? (
-              <X className="h-4 w-4" />
-            ) : (
-              <Filter className="h-4 w-4" />
-            )}
-            {showMobileFilters ? 'Hide Filters' : 'Show Filters'}
-          </Button>
-          {/* Mobile Sort Controls */}
-          <Select
-            value={sortBy}
-            onValueChange={(value) => setSortBy(value as SortOption)}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Sort by" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="bestMatch">Best Match</SelectItem>
-              <SelectItem value="priceLowToHigh">Price: Low to High</SelectItem>
-              <SelectItem value="priceHighToLow">Price: High to Low</SelectItem>
-            </SelectContent>
-          </Select>
+      <div className="mx-auto max-w-[1600px] px-4 md:px-8">
+        {/* Page Title Section */}
+        <div className="py-8 px-4">
+          <h1 className="text-4xl font-bold text-neutral-900 mb-2">
+            {currentHandle === 'all'
+              ? 'Golf Clubs'
+              : collections.find((c: any) => c.handle === currentHandle)
+                  ?.title || 'Products'}
+          </h1>
+          <p className="text-neutral-600">
+            {currentHandle === 'all'
+              ? 'Browse our complete collection of premium second hand golf clubs'
+              : `Explore our selection of ${
+                  collections.find((c: any) => c.handle === currentHandle)
+                    ?.title || 'products'
+                }`}
+          </p>
         </div>
 
-        <motion.div className="flex" layout>
+        {/* Collections Navigation */}
+        <CollectionNav
+          collections={collections}
+          currentHandle={currentHandle}
+        />
+
+        {/* Sticky Top Controls for both Mobile and Desktop */}
+        <div className=" bg-white z-40 py-4 pb-0 px-3 border-t border-neutral-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (window.innerWidth >= 1024) {
+                    setShowDesktopFilters(!showDesktopFilters);
+                  } else {
+                    setShowMobileFilters(!showMobileFilters);
+                  }
+                }}
+                className="flex items-center gap-2"
+              >
+                {showMobileFilters || showDesktopFilters ? (
+                  <X className="h-4 w-4" />
+                ) : (
+                  <Filter className="h-4 w-4" />
+                )}
+                Filters
+              </Button>
+              <p className="text-sm">{`${sortedAndFilteredProducts.nodes.length} Products`}</p>
+            </div>
+
+            <Select
+              value={sortBy}
+              onValueChange={(value) => setSortBy(value as SortOption)}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="bestMatch">Best Match</SelectItem>
+                <SelectItem value="priceLowToHigh">
+                  Price: Low to High
+                </SelectItem>
+                <SelectItem value="priceHighToLow">
+                  Price: High to Low
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="flex pt-4">
           {/* Mobile Filters */}
           <AnimatePresence>
             {showMobileFilters && (
-              <motion.aside
-                initial={{x: -300, opacity: 0}}
+              <motion.div
+                initial={{x: '-100%', opacity: 1}}
                 animate={{x: 0, opacity: 1}}
-                exit={{x: -300, opacity: 0}}
+                exit={{x: '-100%', opacity: 1}}
                 transition={{
                   type: 'spring',
                   stiffness: 300,
                   damping: 30,
                 }}
-                className="lg:hidden fixed inset-y-0 left-0 z-50 w-[280px] bg-white shadow-xl"
+                className="lg:hidden fixed inset-y-0 left-0 z-50 w-full bg-white shadow-xl"
               >
                 <div className="h-full flex flex-col">
                   <div className="p-4 border-b border-neutral-200 flex justify-between items-center">
@@ -283,7 +327,7 @@ export default function AllProducts() {
                     />
                   </div>
                 </div>
-              </motion.aside>
+              </motion.div>
             )}
           </AnimatePresence>
 
@@ -299,35 +343,21 @@ export default function AllProducts() {
                   stiffness: 300,
                   damping: 30,
                 }}
-                className="hidden lg:block flex-shrink-0 overflow-hidden"
+                className="hidden lg:block"
               >
                 <div className="w-[280px] mr-8">
-                  <motion.aside className="sticky top-6 h-[calc(100vh-3rem)]">
-                    <div className="bg-white rounded-lg border border-neutral-200 h-full overflow-hidden flex flex-col">
-                      <div className="p-4 border-b border-neutral-200 flex justify-between items-center">
-                        <h1 className="text-lg font-bold text-neutral-900">
-                          Filters
-                        </h1>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setShowDesktopFilters(false)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <div className="flex-1 overflow-y-auto p-4">
-                        <FilterPanel
-                          filters={filters}
-                          setFilters={setFilters}
-                          priceRange={priceRange}
-                          setPriceRange={setPriceRange}
-                          clubCategories={clubCategories}
-                          brands={brands}
-                        />
-                      </div>
+                  <div className="bg-white rounded-lg border-neutral-200 h-full overflow-hidden">
+                    <div className="p-4">
+                      <FilterPanel
+                        filters={filters}
+                        setFilters={setFilters}
+                        priceRange={priceRange}
+                        setPriceRange={setPriceRange}
+                        clubCategories={clubCategories}
+                        brands={brands}
+                      />
                     </div>
-                  </motion.aside>
+                  </div>
                 </div>
               </motion.div>
             )}
@@ -336,52 +366,14 @@ export default function AllProducts() {
           {/* Main Content */}
           <motion.main
             className="flex-1 min-h-0"
-            layout
             transition={{
               type: 'spring',
               stiffness: 300,
               damping: 30,
             }}
           >
-            {/* Desktop Sort Controls */}
-            <motion.div className="hidden lg:flex justify-between mb-4" layout>
-              <div className="hidden lg:block mb-4 ml-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowDesktopFilters((prev) => !prev)}
-                  className="flex items-center gap-2"
-                >
-                  {showDesktopFilters ? (
-                    <X className="h-4 w-4" />
-                  ) : (
-                    <Filter className="h-4 w-4" />
-                  )}
-                  {showDesktopFilters ? 'Hide Filters' : 'Show Filters'}
-                </Button>
-              </div>
-
-              <Select
-                value={sortBy}
-                onValueChange={(value) => setSortBy(value as SortOption)}
-              >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="bestMatch">Best Match</SelectItem>
-                  <SelectItem value="priceLowToHigh">
-                    Price: Low to High
-                  </SelectItem>
-                  <SelectItem value="priceHighToLow">
-                    Price: High to Low
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </motion.div>
-
             {/* Product Grid */}
-            <motion.div className="flex-1" layout>
+            <motion.div className="flex-1 p-4">
               {sortedAndFilteredProducts.nodes.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   No products match the selected filters
@@ -391,8 +383,8 @@ export default function AllProducts() {
                   connection={sortedAndFilteredProducts}
                   resourcesClassName={`grid gap-3 ${
                     showDesktopFilters
-                      ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
-                      : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 xl:grid-cols-9'
+                      ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5'
+                      : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-6'
                   }`}
                 >
                   {({
@@ -412,7 +404,7 @@ export default function AllProducts() {
               )}
             </motion.div>
           </motion.main>
-        </motion.div>
+        </div>
       </div>
     </div>
   );
@@ -478,6 +470,29 @@ const CATALOG_QUERY = `#graphql
         hasNextPage
         endCursor
         startCursor
+      }
+    }
+  }
+` as const;
+
+const CATEGORIES_QUERY = `#graphql
+  fragment Collection on Collection {
+    id
+    title
+    image {
+      id
+      url
+      altText
+      width
+      height
+    }
+    handle
+  }
+  query StoreCollections($country: CountryCode, $language: LanguageCode)
+    @inContext(country: $country, language: $language) {
+    collections(first: 6, sortKey: UPDATED_AT, reverse: false) {
+      nodes {
+        ...Collection
       }
     }
   }
