@@ -1,98 +1,88 @@
 import {defer, redirect, type LoaderFunctionArgs} from '@netlify/remix-runtime';
-import {useLoaderData, Link, type MetaFunction} from '@remix-run/react';
-import {getPaginationVariables, Image, Money} from '@shopify/hydrogen';
-import {useState, useMemo} from 'react';
-import type {ProductItemFragment} from 'storefrontapi.generated';
-import {useVariantUrl} from '~/lib/variants';
-import {PaginatedResourceSection} from '~/components/PaginatedResourceSection';
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '~/components/ui/collapsible';
-import {Checkbox} from '~/components/ui/checkbox';
-import {ChevronDown} from 'lucide-react';
-import {Slider} from '~/components/ui/slider';
-import {Separator} from '~/components/ui/separator';
-import {motion} from 'framer-motion';
+  Link,
+  type MetaFunction,
+  useLoaderData,
+  useSearchParams,
+} from '@remix-run/react';
+import {getPaginationVariables} from '@shopify/hydrogen';
+import {AnimatePresence, motion} from 'framer-motion';
+import {Filter, X} from 'lucide-react';
+import {useEffect, useMemo, useState} from 'react';
+import type {ProductItemFragment} from 'storefrontapi.generated';
+import CollectionNav from '~/components/CollectionNav';
+import FilterPanel, {
+  CategoryOption,
+  FilterState,
+} from '~/components/FilterPanel';
+import {PaginatedResourceSection} from '~/components/PaginatedResourceSection';
+import ProductItem from '~/components/ProductItem';
+import {Button} from '~/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '~/components/ui/select';
 
-// Type definitions
-interface FilterState {
-  hand: string[];
-  category: string[];
-  brand: string[];
-  condition: string[];
-  level: string[];
-}
-
-interface CategoryOption {
-  value: string;
-  label: string;
-}
-
-interface FilterPanelProps {
-  filters: FilterState;
-  setFilters: (filters: FilterState) => void;
-  priceRange: [number, number];
-  setPriceRange: (range: [number, number]) => void;
-  clubCategories: CategoryOption[];
-  brands: CategoryOption[];
-}
-
-interface ProductItemProps {
-  product: ProductItemFragment;
-  loading?: 'eager' | 'lazy';
-}
+type SortOption = 'bestMatch' | 'priceLowToHigh' | 'priceHighToLow';
 
 export const meta: MetaFunction<typeof loader> = ({data}) => {
-  return [{title: `Golf Clubs | ${data?.collection.title ?? ''}`}];
+  return [{title: `${data?.collection.title ?? ''}`}];
 };
 
-export async function loader(args: LoaderFunctionArgs) {
-  const deferredData = loadDeferredData(args);
-  const criticalData = await loadCriticalData(args);
-  return defer({...deferredData, ...criticalData});
-}
-
-async function loadCriticalData({
-  context,
-  params,
-  request,
-}: LoaderFunctionArgs) {
+export async function loader({context, request, params}: LoaderFunctionArgs) {
   const {handle} = params;
   const {storefront} = context;
-  const paginationVariables = getPaginationVariables(request, {pageBy: 12});
 
   if (!handle) {
     throw redirect('/collections');
   }
 
-  const [{collection}] = await Promise.all([
+  const paginationVariables = getPaginationVariables(request, {pageBy: 12});
+
+  const [{collection}, {collections}] = await Promise.all([
     storefront.query(COLLECTION_QUERY, {
       variables: {handle, ...paginationVariables},
     }),
+    storefront.query(CATEGORIES_QUERY),
   ]);
 
   if (!collection) {
     throw new Response(`Collection ${handle} not found`, {status: 404});
   }
 
-  return {collection};
-}
-
-function loadDeferredData({context}: LoaderFunctionArgs) {
-  return {};
+  return defer({
+    collection,
+    collections: collections.nodes,
+  });
 }
 
 export default function Collection() {
-  const {collection} = useLoaderData<typeof loader>();
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, 2000]);
+  const {collection, collections} = useLoaderData<typeof loader>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [showDesktopFilters, setShowDesktopFilters] = useState(true);
+  const [sortBy, setSortBy] = useState<SortOption>('bestMatch');
+
+  // Initialize filters from URL parameters
   const [filters, setFilters] = useState<FilterState>({
-    hand: [],
-    category: [],
-    brand: [],
-    condition: [],
-    level: [],
+    hand: searchParams.getAll('hand'),
+    category: searchParams.getAll('category'),
+    brand: searchParams.getAll('brand'),
+    condition: searchParams.getAll('condition'),
+    level: searchParams.getAll('level'),
+  });
+
+  const [priceRange, setPriceRange] = useState<[number, number]>(() => {
+    const minPrice = searchParams.has('minPrice')
+      ? Number(searchParams.get('minPrice'))
+      : 0;
+    const maxPrice = searchParams.has('maxPrice')
+      ? Number(searchParams.get('maxPrice'))
+      : 2000;
+    return [minPrice, maxPrice];
   });
 
   const clubCategories: CategoryOption[] = [
@@ -113,16 +103,39 @@ export default function Collection() {
     {value: 'cobra', label: 'Cobra'},
   ];
 
-  // Filter products based on selected categories and other filters
+  useEffect(() => {
+    const newSearchParams = new URLSearchParams();
+    let hasActiveFilters = false;
+
+    Object.entries(filters).forEach(([key, values]) => {
+      if (values.length > 0) {
+        hasActiveFilters = true;
+        values.forEach((value: any) => {
+          newSearchParams.append(key, value);
+        });
+      }
+    });
+
+    if (priceRange[0] !== 0 || priceRange[1] !== 2000) {
+      hasActiveFilters = true;
+      newSearchParams.set('minPrice', priceRange[0].toString());
+      newSearchParams.set('maxPrice', priceRange[1].toString());
+    }
+
+    if (hasActiveFilters) {
+      setSearchParams(newSearchParams, {replace: true});
+    } else {
+      setSearchParams({}, {replace: true});
+    }
+  }, [filters, priceRange, setSearchParams]);
+
   const filteredProducts = useMemo(() => {
     let filtered = collection.products.nodes;
 
-    // Filter by category
     if (filters.category.length > 0) {
-      filtered = filtered.filter((product) => {
+      filtered = filtered.filter((product: any) => {
         const productTags = product.tags || [];
         const productTitle = product.title.toLowerCase();
-
         return filters.category.some((category) => {
           const categoryName = category.toLowerCase();
           return (
@@ -133,9 +146,8 @@ export default function Collection() {
       });
     }
 
-    // Filter by brand
     if (filters.brand.length > 0) {
-      filtered = filtered.filter((product) => {
+      filtered = filtered.filter((product: any) => {
         const productTitle = product.title.toLowerCase();
         return filters.brand.some((brand) =>
           productTitle.includes(brand.toLowerCase()),
@@ -143,18 +155,34 @@ export default function Collection() {
       });
     }
 
-    // Filter by price range
-    filtered = filtered.filter((product) => {
+    filtered = filtered.filter((product: any) => {
       const price = parseFloat(product.priceRange.minVariantPrice.amount);
       return price >= priceRange[0] && price <= priceRange[1];
     });
 
-    // Filter by hand preference if specified
     if (filters.hand.length > 0) {
-      filtered = filtered.filter((product) => {
+      filtered = filtered.filter((product: any) => {
         const productTitle = product.title.toLowerCase();
         return filters.hand.some((hand) =>
           productTitle.includes(hand.toLowerCase()),
+        );
+      });
+    }
+
+    if (filters.condition.length > 0) {
+      filtered = filtered.filter((product: any) => {
+        const productTags = product.tags || [];
+        return filters.condition.some((condition) =>
+          productTags.includes(condition.toLowerCase()),
+        );
+      });
+    }
+
+    if (filters.level.length > 0) {
+      filtered = filtered.filter((product: any) => {
+        const productTags = product.tags || [];
+        return filters.level.some((level) =>
+          productTags.includes(level.toLowerCase()),
         );
       });
     }
@@ -165,298 +193,222 @@ export default function Collection() {
     };
   }, [collection.products, filters, priceRange]);
 
+  const sortedAndFilteredProducts = useMemo(() => {
+    let sorted = [...filteredProducts.nodes];
+
+    switch (sortBy) {
+      case 'priceLowToHigh':
+        sorted.sort(
+          (a, b) =>
+            parseFloat(a.priceRange.minVariantPrice.amount) -
+            parseFloat(b.priceRange.minVariantPrice.amount),
+        );
+        break;
+      case 'priceHighToLow':
+        sorted.sort(
+          (a, b) =>
+            parseFloat(b.priceRange.minVariantPrice.amount) -
+            parseFloat(a.priceRange.minVariantPrice.amount),
+        );
+        break;
+      default:
+        break;
+    }
+
+    return {
+      ...filteredProducts,
+      nodes: sorted,
+    };
+  }, [filteredProducts, sortBy]);
+
   return (
     <div className="min-h-screen bg-white">
-      <div className="mx-auto max-w-[1800px] px-4 md:px-8 py-6">
-        <div className="flex gap-8">
-          {/* Filter Panel */}
-          <aside className="hidden lg:block w-[200px] flex-shrink-0 sticky top-6 h-[calc(100vh-3rem)] bg-white rounded-lg border border-neutral-200 overflow-hidden">
-            <div className="p-4">
-              <div className="pb-3 mb-2 border-b border-neutral-200">
-                <h1 className="text-lg font-bold text-neutral-900">
-                  {collection.title}
-                </h1>
-              </div>
-              <FilterPanel
-                filters={filters}
-                setFilters={setFilters}
-                priceRange={priceRange}
-                setPriceRange={setPriceRange}
-                clubCategories={clubCategories}
-                brands={brands}
-              />
-            </div>
-          </aside>
-
-          {/* Mobile Layout */}
-          <div className="w-full lg:hidden">
-            <div className="p-4 bg-white border-b border-gray-200">
-              <h1 className="text-2xl font-bold mb-4">{collection.title}</h1>
-              <FilterPanel
-                filters={filters}
-                setFilters={setFilters}
-                priceRange={priceRange}
-                setPriceRange={setPriceRange}
-                clubCategories={clubCategories}
-                brands={brands}
-              />
-            </div>
-          </div>
-
-          {/* Product Grid */}
-          <main className="flex-1 p-3 lg:p-6">
-            {filteredProducts.nodes.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                No products match the selected filters
-              </div>
-            ) : (
-              <PaginatedResourceSection
-                connection={filteredProducts}
-                resourcesClassName="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3"
-              >
-                {({
-                  node: product,
-                  index,
-                }: {
-                  node: ProductItemFragment;
-                  index: number;
-                }) => (
-                  <ProductItem
-                    key={product.id}
-                    product={product}
-                    loading={index < 12 ? 'eager' : undefined}
-                  />
-                )}
-              </PaginatedResourceSection>
-            )}
-          </main>
+      <div className="mx-auto max-w-[1600px] px-4 md:px-8">
+        {/* Page Title Section */}
+        <div className="py-8 px-4">
+          <h1 className="text-4xl font-bold text-neutral-900 mb-2">
+            {collection.title}
+          </h1>
+          <p className="text-neutral-600">
+            {collection.description ||
+              `Explore our selection of ${collection.title}`}
+          </p>
         </div>
-      </div>
-    </div>
-  );
-}
 
-function FilterPanel({
-  filters,
-  setFilters,
-  priceRange,
-  setPriceRange,
-  clubCategories,
-  brands,
-}: FilterPanelProps) {
-  const handleFilterChange = (key: keyof FilterState, value: string) => {
-    setFilters((prev) => {
-      const current = prev[key];
-      const updated = current.includes(value)
-        ? current.filter((item) => item !== value)
-        : [...current, value];
-      return {...prev, [key]: updated};
-    });
-  };
+        {/* Collections Navigation */}
+        <CollectionNav
+          collections={collections}
+          currentHandle={collection.handle}
+          showAll
+        />
 
-  return (
-    <div className="space-y-1 text-sm">
-      <div>
-        <h3 className="font-semibold mb-3">Filters</h3>
-        <Separator className="mb-4" />
-
-        <div className="space-y-3">
-          <Collapsible defaultOpen>
-            <CollapsibleTrigger className="flex w-full items-center justify-between py-2 font-medium">
-              Hand Preference
-              <ChevronDown className="h-4 w-4" />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-2 pt-2">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="right-handed"
-                  checked={filters.hand.includes('right')}
-                  onCheckedChange={() => handleFilterChange('hand', 'right')}
-                />
-                <label htmlFor="right-handed">Right Handed</label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="left-handed"
-                  checked={filters.hand.includes('left')}
-                  onCheckedChange={() => handleFilterChange('hand', 'left')}
-                />
-                <label htmlFor="left-handed">Left Handed</label>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-
-          <Collapsible defaultOpen>
-            <CollapsibleTrigger className="flex w-full items-center justify-between py-2 font-medium">
-              Club Category
-              <ChevronDown className="h-4 w-4" />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-2 pt-2">
-              {clubCategories.map((category) => (
-                <div
-                  key={category.value}
-                  className="flex items-center space-x-2"
-                >
-                  <Checkbox
-                    id={category.value}
-                    checked={filters.category.includes(category.value)}
-                    onCheckedChange={() =>
-                      handleFilterChange('category', category.value)
-                    }
-                  />
-                  <label htmlFor={category.value}>{category.label}</label>
-                </div>
-              ))}
-            </CollapsibleContent>
-          </Collapsible>
-
-          <Collapsible defaultOpen>
-            <CollapsibleTrigger className="flex w-full items-center justify-between py-2 font-medium">
-              Brand
-              <ChevronDown className="h-4 w-4" />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-2 pt-2">
-              {brands.map((brand) => (
-                <div key={brand.value} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={brand.value}
-                    checked={filters.brand.includes(brand.value)}
-                    onCheckedChange={() =>
-                      handleFilterChange('brand', brand.value)
-                    }
-                  />
-                  <label htmlFor={brand.value}>{brand.label}</label>
-                </div>
-              ))}
-            </CollapsibleContent>
-          </Collapsible>
-
-          <Collapsible>
-            <CollapsibleTrigger className="flex w-full items-center justify-between py-2 font-medium">
-              Price Range
-              <ChevronDown className="h-4 w-4" />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-2">
-              <div className="px-2">
-                <Slider
-                  defaultValue={[0, 2000]}
-                  max={2000}
-                  step={50}
-                  value={priceRange}
-                  onValueChange={(value) =>
-                    setPriceRange(value as [number, number])
+        {/* Sticky Top Controls for both Mobile and Desktop */}
+        <div className="bg-white z-40 py-4 pb-0 px-3 border-t border-neutral-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (window.innerWidth >= 1024) {
+                    setShowDesktopFilters(!showDesktopFilters);
+                  } else {
+                    setShowMobileFilters(!showMobileFilters);
                   }
-                  className="mt-2"
-                />
-                <div className="flex justify-between mt-2 text-sm text-gray-600">
-                  <span>${priceRange[0]}</span>
-                  <span>${priceRange[1]}</span>
-                </div>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
+                }}
+                className="flex items-center gap-2"
+              >
+                {showMobileFilters || showDesktopFilters ? (
+                  <X className="h-4 w-4" />
+                ) : (
+                  <Filter className="h-4 w-4" />
+                )}
+                Filters
+              </Button>
+              <p className="text-sm">{`${sortedAndFilteredProducts.nodes.length} Products`}</p>
+            </div>
 
-          <Collapsible>
-            <CollapsibleTrigger className="flex w-full items-center justify-between py-2 font-medium">
-              Condition
-              <ChevronDown className="h-4 w-4" />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-2 pt-2">
-              {[
-                {value: 'new', label: 'New'},
-                {value: 'like-new', label: 'Like New'},
-                {value: 'good', label: 'Good'},
-                {value: 'fair', label: 'Fair'},
-              ].map((condition) => (
-                <div
-                  key={condition.value}
-                  className="flex items-center space-x-2"
+            <Select
+              value={sortBy}
+              onValueChange={(value) => setSortBy(value as SortOption)}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent className="bg-white">
+                <SelectItem value="bestMatch">Best Match</SelectItem>
+                <SelectItem value="priceLowToHigh">
+                  Price: Low to High
+                </SelectItem>
+                <SelectItem value="priceHighToLow">
+                  Price: High to Low
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="flex pt-4">
+          {/* Mobile Filters */}
+          <AnimatePresence>
+            {showMobileFilters && (
+              <motion.div
+                initial={{x: '-100%', opacity: 1}}
+                animate={{x: 0, opacity: 1}}
+                exit={{x: '-100%', opacity: 1}}
+                transition={{
+                  type: 'spring',
+                  stiffness: 300,
+                  damping: 30,
+                }}
+                className="lg:hidden fixed inset-y-0 left-0 z-50 w-full bg-white shadow-xl"
+              >
+                <div className="h-full flex flex-col">
+                  <div className="p-4 border-b border-neutral-200 flex justify-between items-center">
+                    <h1 className="text-lg font-bold text-neutral-900">
+                      Filters
+                    </h1>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowMobileFilters(false)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-4">
+                    <FilterPanel
+                      filters={filters}
+                      setFilters={setFilters}
+                      priceRange={priceRange}
+                      setPriceRange={setPriceRange}
+                      clubCategories={clubCategories}
+                      brands={brands}
+                      hideClubCategories
+                    />
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Desktop Filters */}
+          <AnimatePresence mode="wait">
+            {showDesktopFilters && (
+              <motion.div
+                initial={{width: 0, opacity: 0}}
+                animate={{width: 280, opacity: 1}}
+                exit={{width: 0, opacity: 0}}
+                transition={{
+                  type: 'spring',
+                  stiffness: 300,
+                  damping: 30,
+                }}
+                className="hidden lg:block"
+              >
+                <div className="w-[280px] mr-8">
+                  <div className="bg-white rounded-lg border-neutral-200 h-full overflow-hidden">
+                    <div className="p-4">
+                      <FilterPanel
+                        filters={filters}
+                        setFilters={setFilters}
+                        priceRange={priceRange}
+                        setPriceRange={setPriceRange}
+                        clubCategories={clubCategories}
+                        brands={brands}
+                        hideClubCategories
+                      />
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Main Content */}
+          <motion.main
+            className="flex-1 min-h-0"
+            transition={{
+              type: 'spring',
+              stiffness: 300,
+              damping: 30,
+            }}
+          >
+            {/* Product Grid */}
+            <motion.div className="flex-1 p-4">
+              {sortedAndFilteredProducts.nodes.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  No products match the selected filters
+                </div>
+              ) : (
+                <PaginatedResourceSection
+                  connection={sortedAndFilteredProducts}
+                  resourcesClassName={`grid gap-3 ${
+                    showDesktopFilters
+                      ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5'
+                      : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-6'
+                  }`}
                 >
-                  <Checkbox
-                    id={condition.value}
-                    checked={filters.condition.includes(condition.value)}
-                    onCheckedChange={() =>
-                      handleFilterChange('condition', condition.value)
-                    }
-                  />
-                  <label htmlFor={condition.value}>{condition.label}</label>
-                </div>
-              ))}
-            </CollapsibleContent>
-          </Collapsible>
-
-          <Collapsible>
-            <CollapsibleTrigger className="flex w-full items-center justify-between py-2 font-medium">
-              Player Level
-              <ChevronDown className="h-4 w-4" />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-2 pt-2">
-              {[
-                {value: 'beginner', label: 'Beginner'},
-                {value: 'intermediate', label: 'Intermediate'},
-                {value: 'advanced', label: 'Advanced'},
-                {value: 'pro', label: 'Professional'},
-              ].map((level) => (
-                <div key={level.value} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={level.value}
-                    checked={filters.level.includes(level.value)}
-                    onCheckedChange={() =>
-                      handleFilterChange('level', level.value)
-                    }
-                  />
-                  <label htmlFor={level.value}>{level.label}</label>
-                </div>
-              ))}
-            </CollapsibleContent>
-          </Collapsible>
+                  {({
+                    node: product,
+                    index,
+                  }: {
+                    node: ProductItemFragment;
+                    index: number;
+                  }) => (
+                    <ProductItem
+                      key={product.id}
+                      product={product}
+                      loading={index < 12 ? 'eager' : undefined}
+                    />
+                  )}
+                </PaginatedResourceSection>
+              )}
+            </motion.div>
+          </motion.main>
         </div>
       </div>
     </div>
-  );
-}
-
-function ProductItem({product, loading}: ProductItemProps) {
-  const variant = product.variants.nodes[0];
-  const variantUrl = useVariantUrl(product.handle, variant.selectedOptions);
-
-  return (
-    <motion.div
-      initial={{opacity: 0, y: 20}}
-      animate={{opacity: 1, y: 0}}
-      transition={{duration: 0.3}}
-    >
-      <Link
-        className="group block bg-white rounded-md shadow-sm hover:shadow transition-shadow duration-200"
-        key={product.id}
-        prefetch="intent"
-        to={variantUrl}
-      >
-        {product.featuredImage && (
-          <div className="aspect-square rounded-t-lg overflow-hidden">
-            <Image
-              alt={product.featuredImage.altText || product.title}
-              aspectRatio="1/1"
-              data={product.featuredImage}
-              loading={loading}
-              sizes="(min-width: 45em) 400px, 100vw"
-              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-            />
-          </div>
-        )}
-        <div className="p-3">
-          <h4 className="font-medium text-sm text-neutral-800 truncate">
-            {product.title}
-          </h4>
-          <div className="mt-1">
-            <Money
-              className="text-sm font-semibold text-neutral-900"
-              data={product.priceRange.minVariantPrice}
-            />
-          </div>
-        </div>
-      </Link>
-    </motion.div>
   );
 }
 
@@ -527,6 +479,29 @@ const COLLECTION_QUERY = `#graphql
           endCursor
           startCursor
         }
+      }
+    }
+  }
+` as const;
+
+const CATEGORIES_QUERY = `#graphql
+  fragment Collection on Collection {
+    id
+    title
+    image {
+      id
+      url
+      altText
+      width
+      height
+    }
+    handle
+  }
+  query StoreCollections($country: CountryCode, $language: LanguageCode)
+    @inContext(country: $country, language: $language) {
+    collections(first: 6, sortKey: UPDATED_AT, reverse: false) {
+      nodes {
+        ...Collection
       }
     }
   }

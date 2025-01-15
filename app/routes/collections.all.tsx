@@ -275,7 +275,7 @@ export default function AllProducts() {
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Sort by" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white">
                 <SelectItem value="bestMatch">Best Match</SelectItem>
                 <SelectItem value="priceLowToHigh">
                   Price: Low to High

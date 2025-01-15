@@ -29,6 +29,7 @@ export interface FilterPanelProps {
   setPriceRange: (range: [number, number]) => void;
   clubCategories: CategoryOption[];
   brands: CategoryOption[];
+  hideClubCategories?: boolean;
 }
 
 function FilterPanel({
@@ -38,6 +39,7 @@ function FilterPanel({
   setPriceRange,
   clubCategories,
   brands,
+  hideClubCategories = false,
 }: FilterPanelProps) {
   const handleFilterChange = (key: keyof FilterState, value: string) => {
     setFilters((prev) => {
@@ -95,29 +97,31 @@ function FilterPanel({
             </CollapsibleContent>
           </Collapsible>
 
-          <Collapsible defaultOpen>
-            <CollapsibleTrigger className="flex w-full items-center justify-between py-2 font-medium">
-              Club Category
-              <ChevronDown className="h-4 w-4" />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-2 pt-2">
-              {clubCategories.map((category) => (
-                <div
-                  key={category.value}
-                  className="flex items-center space-x-2"
-                >
-                  <Checkbox
-                    id={category.value}
-                    checked={filters.category.includes(category.value)}
-                    onCheckedChange={() =>
-                      handleFilterChange('category', category.value)
-                    }
-                  />
-                  <label htmlFor={category.value}>{category.label}</label>
-                </div>
-              ))}
-            </CollapsibleContent>
-          </Collapsible>
+          {!hideClubCategories && (
+            <Collapsible defaultOpen>
+              <CollapsibleTrigger className="flex w-full items-center justify-between py-2 font-medium">
+                Club Category
+                <ChevronDown className="h-4 w-4" />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-2 pt-2">
+                {clubCategories.map((category) => (
+                  <div
+                    key={category.value}
+                    className="flex items-center space-x-2"
+                  >
+                    <Checkbox
+                      id={category.value}
+                      checked={filters.category.includes(category.value)}
+                      onCheckedChange={() =>
+                        handleFilterChange('category', category.value)
+                      }
+                    />
+                    <label htmlFor={category.value}>{category.label}</label>
+                  </div>
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
+          )}
 
           <Collapsible defaultOpen>
             <CollapsibleTrigger className="flex w-full items-center justify-between py-2 font-medium">

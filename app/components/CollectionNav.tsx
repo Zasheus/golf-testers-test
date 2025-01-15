@@ -18,11 +18,13 @@ interface Collection {
 interface CollectionNavProps {
   collections: Collection[];
   currentHandle: string | undefined;
+  showAll?: boolean;
 }
 
 const CollectionNav: React.FC<CollectionNavProps> = ({
   collections,
   currentHandle,
+  showAll = false,
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -127,6 +129,17 @@ const CollectionNav: React.FC<CollectionNavProps> = ({
         onMouseLeave={handleMouseLeave}
         onMouseMove={handleMouseMove}
       >
+        {showAll && (
+          <Link to="/collections/all" className="shrink-0 snap-start">
+            <Button
+              variant={currentHandle === undefined ? 'default' : 'outline'}
+              size="lg"
+              className="px-6 py-3 text-base font-medium border-neutral-300 min-w-[120px] transition-all duration-300 hover:shadow-lg hover:border-neutral-400"
+            >
+              All Clubs
+            </Button>
+          </Link>
+        )}
         {collections.map((collection) => (
           <Link
             key={collection.id}
@@ -134,11 +147,13 @@ const CollectionNav: React.FC<CollectionNavProps> = ({
             className="shrink-0 snap-start"
           >
             <Button
-              variant={
-                currentHandle === collection.handle ? 'default' : 'outline'
-              }
+              variant={'outline'}
               size="lg"
-              className="px-6 py-3 text-base font-medium border-neutral-300 min-w-[120px] transition-all duration-300 hover:shadow-lg hover:border-neutral-400"
+              className={`px-6 py-3 text-base font-medium min-w-[120px] transition-all duration-300 ${
+                currentHandle === collection.handle
+                  ? 'border-green-900 text-green-900'
+                  : 'border-neutral-300 hover:shadow-lg hover:border-neutral-400'
+              }`}
             >
               {collection.title}
             </Button>
